@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select Ball</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script id="click-data" type="application/json">
+        {{ previous_clicks|tojson }}
+    </script>
+
+</head>
+<body>
+
+    <h2>Select Ball</h2>
+
+    <div class="frame-row">
+        {% for frame in frame_names %}
+            <div class="frame-item">
+                <div class="frame-title">{{ frame }}</div>
+                <!-- Wrap image in container -->
+                <div class="frame-container">
+                    <img id="img_{{ frame }}" 
+                        src="{{ url_for('static', filename='frames/' + frame) }}" 
+                        onclick="sendClick(event, '{{ frame }}')">
+
+                    <canvas id="canvas_{{ frame }}" class="image-frame"></canvas>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <button onclick="segmentNow()" class="segment-btn">
+    🧠 Segment Ball
+    </button>
+    <div id="loading" style="display: none; font-weight: bold; color: green; margin-top: 20px;">
+    ⏳ Segmenting... Please wait.
+    </div>
+
+    <script>
+
+        const previousClicks = JSON.parse(document.getElementById('click-data').textContent);
+        console.log(previousClicks);
+
+        function drawClick(frame, x, y) {
+            const img = document.getElementById("img_" + frame);
+            const canvas = document.getElementById("canvas_" + frame);
+            const ctx = canvas.getContext("2d");
+
+            // Set canvas size to match image
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            canvas.style.width = img.width + "px";
+            canvas.style.height = img.height + "px";
+
+            // Scale circle to actual canvas size
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, 2 * Math.PI);
+            ctx.fillStyle = "red";
+            ctx.fill();
+        }
+
+        function clearClick(frame) {
+            const canvas = document.getElementById("canvas_" + frame);
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Remove from previousClicks
+            delete previousClicks[frame];
+
+            // Notify server to update clicks.json
+            fetch('/submit_click', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ frame: frame, x: null, y: null })  // null means remove
+            });
+        }
+
+        function renderPreviousClicks() {
+            for (let frame in previousClicks) {
+                const coords = previousClicks[frame];
+                if (Array.isArray(coords)) {
+                    const [x, y] = coords;
+                    drawClick(frame, x, y);
+                }
+            }
+        }
+
+
+        function sendClick(event, frame) {
+            const img = event.target;
+
+            const naturalWidth = img.naturalWidth;
+            const naturalHeight = img.naturalHeight;
+            const displayedWidth = img.width;
+            const displayedHeight = img.height;
+
+            const rect = img.getBoundingClientRect();
+            const clickX = event.clientX - rect.left;
+            const clickY = event.clientY - rect.top;
+
+            const scaledX = Math.round((clickX / displayedWidth) * naturalWidth);
+            const scaledY = Math.round((clickY / displayedHeight) * naturalHeight);
+
+            fetch('/submit_click', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ frame: frame, x: scaledX, y: scaledY })
+            })
+            .then(response => response.json())
+            .then(data => {
+                drawClick(data.frame, data.x, data.y);
+                alert(`✅ Saved click on ${data.frame} at (${data.x}, ${data.y})`);
+            });
+        }
+
+        function segmentNow() {
+            const loadingDiv = document.getElementById("loading");
+            loadingDiv.style.display = "block";  // Show loading
+
+            fetch('/segment', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(`✅ Segmentation complete: ${data.message}`);
+            })
+            .catch(err => {
+                alert("❌ Segmentation failed.");
+                console.error(err);
+            })
+            .finally(() => {
+                loadingDiv.style.display = "none";  // Hide loading
+            });
+        }
+
+        // Draw previously saved clicks
+        window.onload = () => {
+            renderPreviousClicks();
+
+            // Add right-click (context menu) handler to each image
+            document.querySelectorAll('img[id^="img_"]').forEach(img => {
+                img.addEventListener('contextmenu', function(e) {
+                    e.preventDefault();
+                    const frame = this.id.replace("img_", "");
+                    clearClick(frame);
+                });
+            });
+        };
+    </script>
+
+</body>
+</html>

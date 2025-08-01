@@ -1,0 +1,54 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+
+h2 {
+    margin-bottom: 20px;
+}
+
+.frame-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.frame-container {
+    position: relative;
+    display: inline-block;
+    border: 2px solid #ccc;
+    border-radius: 7px;
+    transition: border-color 0.2s;
+    width: fit-content;
+}
+
+.frame-container:hover {
+    border-color: #0f1cd6;
+}
+
+.frame-container img {
+    display: block;
+    max-width: 320px;
+    height: auto;
+    cursor: crosshair;
+    border-radius: 5px;
+}
+
+
+
+.frame-title {
+    margin: 10px 0;
+}
+
+.segment-btn {
+    margin-top: 30px; 
+    padding: 10px 20px; 
+    font-size: 16px;
+}
+
+.image-frame {
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    pointer-events: none;
+}
