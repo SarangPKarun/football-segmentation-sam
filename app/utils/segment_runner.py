@@ -90,37 +90,57 @@ def run_segmentation_from_clicks(click_file='clicks.json', output_img_path='stat
             for i, out_obj_id in enumerate(out_obj_ids)
         }
 
-    vis_frame_stride=1
 
-    green_background = (0, 255, 0)  # RGB green
 
+
+
+    # --- Step 2: Visualize and save segmentation for every N frames ---
+    vis_frame_stride = 1  # You can set this to 1 if you want every frame
     for out_frame_idx in range(0, len(frame_names), vis_frame_stride):
         frame_name = frame_names[out_frame_idx]
         frame_path = os.path.join(video_dir, frame_name)
-        
-        # Load original frame
-        image = Image.open(frame_path).convert("RGB")
-        image_np = np.array(image)
+        image = Image.open(frame_path)
 
-        # Start with green canvas
-        mask_overlay = np.ones_like(image_np) * np.array(green_background, dtype=np.uint8)
+        fig, ax = plt.subplots()
+        ax.imshow(image)
+        ax.axis("off")
 
-        # Apply all masks
         for out_obj_id, out_mask in video_segments.get(out_frame_idx, {}).items():
-            mask_bool = out_mask.astype(bool)
-            for c in range(3):  # For R, G, B channels
-                mask_overlay[..., c][mask_bool] = image_np[..., c][mask_bool]
+            show_mask(out_mask, ax, obj_id=out_obj_id)
 
-        # Save the masked frame
+        plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
         output_path = os.path.join(output_img_path, f"seg_{frame_name}")
-        Image.fromarray(mask_overlay).save(output_path)
+        plt.savefig(output_path, bbox_inches='tight', pad_inches=0)
+        plt.close(fig)
+
+
+    # green_background = (0, 255, 0)  # RGB green
+    
+    # for out_frame_idx in range(0, len(frame_names), vis_frame_stride):
+    #     frame_name = frame_names[out_frame_idx]
+    #     frame_path = os.path.join(video_dir, frame_name)
+        
+    #     # Load original frame
+    #     image = Image.open(frame_path).convert("RGB")
+    #     image_np = np.array(image)
+
+    #     # Start with green canvas
+    #     mask_overlay = np.ones_like(image_np) * np.array(green_background, dtype=np.uint8)
+
+    #     # Apply all masks
+    #     for out_obj_id, out_mask in video_segments.get(out_frame_idx, {}).items():
+    #         mask_bool = out_mask.astype(bool)
+    #         for c in range(3):  # For R, G, B channels
+    #             mask_overlay[..., c][mask_bool] = image_np[..., c][mask_bool]
+
+    #     # Save the masked frame
+    #     output_path = os.path.join(output_img_path, f"seg_{frame_name}")
+    #     Image.fromarray(mask_overlay).save(output_path)
+
 
 
 
     images_to_video(output_img_path, 'static/segmentation_output.mp4')
-
-
-    
     
 
     return True, "Per-frame segmentation completed."

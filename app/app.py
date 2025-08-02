@@ -45,7 +45,6 @@ def annotate():
     selected_frames = [frame_names[i] for i in selected_frames]
 
 
-
     previous_clicks = {}
     try:
         if os.path.exists(CLICK_OUTPUT) and os.path.getsize(CLICK_OUTPUT) > 0:
