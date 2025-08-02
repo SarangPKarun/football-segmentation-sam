@@ -1,12 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Upload Video</title>
+    <meta charset="UTF-8">
+    <title>Upload Football Video</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/uploadstyle.css') }}">
 </head>
 <body>
-    <h2>Upload your football video</h2>
+    <h2>Upload Your Football Video</h2>
     <form action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="video" accept="video/*" required>
+        <input type="file" name="video" accept="video/*" required><br>
         <input type="submit" value="Upload and Process">
     </form>
 </body>

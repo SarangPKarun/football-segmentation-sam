@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Select Ball</title>
+    <title>Select</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script id="click-data" type="application/json">
         {{ previous_clicks|tojson }}
@@ -10,7 +10,36 @@
 </head>
 <body>
 
-    <h2>Select Ball</h2>
+    <h2 class="title">🎯 Object Annotation</h2>
+    <div class="label-selector">
+        <label>Select Label:</label>
+        <label class="label-option">
+            <input type="radio" name="labelType" value="ball" checked>
+            <span class="dot ball">Ball</span>
+        </label>
+        <label class="label-option">
+            <input type="radio" name="labelType" value="team_a">
+            <span class="dot team-a">Team A</span>
+        </label>
+        <label class="label-option">
+            <input type="radio" name="labelType" value="team_b">
+            <span class="dot team-b">Team B</span>
+        </label>
+        <label class="label-option">
+            <input type="radio" name="labelType" value="goalkeeper">
+            <span class="dot goalkeeper">Goalkeeper</span>
+        </label>
+        <label class="label-option">
+            <input type="radio" name="labelType" value="goalpost">
+            <span class="dot goalpost">Goalpost</span>
+        </label>
+    </div>
+
+
+
+    <button onclick="clearClicks()" class="clear-btn">
+        🗑️ Clear Clicks
+    </button>
 
     <div class="frame-row">
         {% for frame in frame_names %}
@@ -29,10 +58,17 @@
     </div>
 
     <button onclick="segmentNow()" class="segment-btn">
-    🧠 Segment Ball
+    🧠 Segment
     </button>
-    <div id="loading" style="display: none; font-weight: bold; color: green; margin-top: 20px;">
-    ⏳ Segmenting... Please wait.
+    
+    
+    <!-- Progress bar -->
+    <div id="loading" class="loading-section">
+        ⏳ Segmenting... Please wait.
+        <div class="progress-bar-bg">
+            <div id="progress-bar-fill"></div>
+        </div>
+        <div id="progress-percent">0%</div>
     </div>
 
     <script>
@@ -40,28 +76,42 @@
         const previousClicks = JSON.parse(document.getElementById('click-data').textContent);
         console.log(previousClicks);
 
-        function drawClick(frame, x, y) {
+
+        function drawClick(frame, x, y, label) {
             const img = document.getElementById("img_" + frame);
             const canvas = document.getElementById("canvas_" + frame);
             const ctx = canvas.getContext("2d");
 
-            // Set canvas size to match image
-            canvas.width = img.naturalWidth;
-            canvas.height = img.naturalHeight;
-            canvas.style.width = img.width + "px";
-            canvas.style.height = img.height + "px";
+            if (!img || !canvas || !ctx) return;
 
-            // Scale circle to actual canvas size
+            // Resize canvas to match image
+            // canvas.width = img.naturalWidth;
+            // canvas.height = img.naturalHeight;
+            // canvas.style.width = img.width + "px";
+            // canvas.style.height = img.height + "px";
+            console.log(frame, x, y, label);
+
+            const colors = {
+                ball: "red",
+                team_a: "blue",
+                team_b: "green",
+                goalkeeper: "orange",
+                goalpost: "purple"
+            };
+
             ctx.beginPath();
             ctx.arc(x, y, 6, 0, 2 * Math.PI);
-            ctx.fillStyle = "red";
+            ctx.fillStyle = colors[label] || "black";
             ctx.fill();
         }
+
 
         function clearClick(frame) {
             const canvas = document.getElementById("canvas_" + frame);
             const ctx = canvas.getContext("2d");
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            console.log(previousClicks)
 
             // Remove from previousClicks
             delete previousClicks[frame];
@@ -70,16 +120,28 @@
             fetch('/submit_click', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ frame: frame, x: null, y: null })  // null means remove
+                body: JSON.stringify({ frame: frame, x: null, y: null, label:null })  // null means remove
             });
         }
 
+        // function renderPreviousClicks() {
+        //     for (let frame in previousClicks) {
+        //         const coords = previousClicks[frame];
+        //         if (Array.isArray(coords)) {
+        //             const [x, y] = coords;
+        //             drawClick(frame, x, y);
+        //         }
+        //     }
+        // }
         function renderPreviousClicks() {
             for (let frame in previousClicks) {
-                const coords = previousClicks[frame];
-                if (Array.isArray(coords)) {
-                    const [x, y] = coords;
-                    drawClick(frame, x, y);
+                const labels = previousClicks[frame];
+                for (let label in labels) {
+                    const points = labels[label];  // array of [x, y] pairs
+                    // console.log(points);
+                    points.forEach(([x, y]) => {
+                        drawClick(frame, x, y, label);
+                    });
                 }
             }
         }
@@ -87,6 +149,7 @@
 
         function sendClick(event, frame) {
             const img = event.target;
+            const label = document.querySelector('input[name="labelType"]:checked').value;
 
             const naturalWidth = img.naturalWidth;
             const naturalHeight = img.naturalHeight;
@@ -103,24 +166,70 @@
             fetch('/submit_click', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ frame: frame, x: scaledX, y: scaledY })
+                body: JSON.stringify({
+                    frame: frame,
+                    x: scaledX,
+                    y: scaledY,
+                    label: label
+                })
             })
             .then(response => response.json())
             .then(data => {
-                drawClick(data.frame, data.x, data.y);
-                alert(`✅ Saved click on ${data.frame} at (${data.x}, ${data.y})`);
+                // ✅ Update in-memory data
+                if (!previousClicks[frame]) previousClicks[frame] = {};
+                if (!previousClicks[frame][label]) previousClicks[frame][label] = [];
+                previousClicks[frame][label].push([scaledX, scaledY]);
+
+                // ✅ Resize canvas — this is the key fix for empty frames
+                const canvas = document.getElementById("canvas_" + frame);
+                const ctx = canvas.getContext("2d");
+
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                canvas.style.width = img.width + "px";
+                canvas.style.height = img.height + "px";
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // ✅ Redraw all clicks in that frame
+                for (const lbl in previousClicks[frame]) {
+                    for (const [x, y] of previousClicks[frame][lbl]) {
+                        drawClick(frame, x, y, lbl);
+                    }
+                }
+
+                // alert(`✅ Saved ${label} at (${scaledX}, ${scaledY}) in ${frame}`);
             });
         }
 
         function segmentNow() {
             const loadingDiv = document.getElementById("loading");
-            loadingDiv.style.display = "block";  // Show loading
+            const progressFill = document.getElementById("progress-bar-fill");
+            const progressPercent = document.getElementById("progress-percent");
+
+            loadingDiv.style.display = "block";
+            progressFill.style.width = "0%";
+            progressPercent.innerText = "0%";
+
+            // Optional mock progress if backend can't send % (just for UX)
+            let progress = 0;
+            const interval = setInterval(() => {
+                if (progress >= 95) {
+                    clearInterval(interval);
+                } else {
+                    progress += Math.random() * 5;
+                    progressFill.style.width = `${Math.floor(progress)}%`;
+                    progressPercent.innerText = `${Math.floor(progress)}%`;
+                }
+            }, 500);
 
             fetch('/segment', {
                 method: 'POST'
             })
             .then(response => response.json())
             .then(data => {
+                progressFill.style.width = "100%";
+                progressPercent.innerText = "100%";
                 alert(`✅ Segmentation complete: ${data.message}`);
             })
             .catch(err => {
@@ -128,12 +237,36 @@
                 console.error(err);
             })
             .finally(() => {
-                loadingDiv.style.display = "none";  // Hide loading
+                setTimeout(() => loadingDiv.style.display = "none", 1000);
             });
+        }
+
+        function clearClicks() {
+            if (confirm("Are you sure you want to clear all clicks?")) {
+                fetch('/clear_clicks', {
+                    method: 'POST'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    location.reload();  // Reload page to reflect cleared clicks
+                });
+            }
         }
 
         // Draw previously saved clicks
         window.onload = () => {
+            // Match canvas size to image size first
+            for (let frame in previousClicks) {
+                const img = document.getElementById("img_" + frame);
+                const canvas = document.getElementById("canvas_" + frame);
+                if (img && canvas) {
+                    canvas.width = img.naturalWidth;
+                    canvas.height = img.naturalHeight;
+                    canvas.style.width = img.width + "px";
+                    canvas.style.height = img.height + "px";
+                }
+            }
             renderPreviousClicks();
 
             // Add right-click (context menu) handler to each image
@@ -141,7 +274,13 @@
                 img.addEventListener('contextmenu', function(e) {
                     e.preventDefault();
                     const frame = this.id.replace("img_", "");
-                    clearClick(frame);
+                    // clearClick(frame);  // ✅ pass selected label
+
+                    const confirmed = confirm(`❓ Are you sure you want to delete the click(s) in ${frame}?`);
+                    if (confirmed) {
+                        clearClick(frame);
+                        // alert(`🗑️ Click(s) removed from ${frame}`);
+                    }
                 });
             });
         };
